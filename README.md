@@ -43,11 +43,42 @@ Follow these steps to get the project running on your local machine.
 4. **Run the Development Server:**
    Start the backend server with `nodemon`, which will automatically restart on file changes.
    ```bash
-   npm run dev
+   PORT=5002 npm run dev
    ```
 
 5. **Launch the Frontend:**
-   Open the `hierarchy_testing.html` file in your browser. Using an extension like "Live Server" for VS Code is recommended.
+   Open the `index.html` file in your browser. Using an extension like "Live Server" for VS Code is recommended.
+
+**Deployment Configuration:**
+
+The codebase is currently configured for a specific VM deployment (`54.84.76.100:5002`). If you need to change the server IP, port, or database host, you must update the hardcoded values in the following files:
+
+-   **`server.js`**:
+    -   To change the backend port, modify the `PORT` variable:
+        ```javascript
+        const PORT = process.env.PORT || 5002;
+        ```
+
+-   **`db/database.js`**:
+    -   To change the database host IP, modify the default `host`:
+        ```javascript
+        host: process.env.DB_HOST || '54.84.76.100',
+        ```
+
+-   **`index.html`** (previously `hierarchy_testing.html`):
+    -   Update the `BACKEND_URL` constant to point to your new API address:
+        ```javascript
+        const BACKEND_URL = 'http://54.84.76.100:5002';
+        ```
+
+-   **`all_hierarchies.html`**:
+    -   Update the `fetch` URL to point to your new API address:
+        ```javascript
+        const res = await fetch('http://54.84.76.100:5002/api/hierarchies/grouped');
+        ```
+
+-   **File Renaming**:
+    -   The main page was renamed from `hierarchy_testing.html` to `index.html`. If you change this, you must update all `window.location.href` navigation calls in both `index.html` and `all_hierarchies.html`.
 
 ## API Endpoints
 

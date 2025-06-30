@@ -240,7 +240,7 @@
 
 <body>
     <div class="container">
-        <button onclick="window.location.href='hierarchy_testing.html'"
+        <button onclick="window.location.href='index.html'"
         style="margin-bottom: 1.5rem; padding: 0.75rem 1.5rem; background-color: #0d2344; color: #fff; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer;">←
         Back</button>
         <h1>Hierarchy Viewer</h1>
@@ -277,7 +277,7 @@
             const messageContainer = document.getElementById('message-container');
             messageContainer.innerHTML = '';
             try {
-                const res = await fetch('http://localhost:3000/api/hierarchies/grouped');
+                const res = await fetch('http://54.84.76.100:5002/api/hierarchies/grouped');
                 if (!res.ok) throw new Error('Failed to fetch hierarchies');
                 groupedData = await res.json();
                 // Apply company filter if present
@@ -403,7 +403,7 @@
         }
 
         function viewHierarchy(id, status) {
-            window.location.href = `hierarchy_testing.html?hierarchyId=${id}&status=${status}`;
+            window.location.href = `index.html?hierarchyId=${id}&status=${status}`;
         }
 
         function closeModal() {

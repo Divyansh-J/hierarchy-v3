@@ -141,7 +141,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, async () => {
   try {
     await db.query('SELECT NOW()');
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://54.84.76.100:${PORT}`);
     console.log('Database connection established successfully');
   } catch (error) {
     console.error('Failed to connect to the database:', error);

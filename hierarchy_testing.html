@@ -655,7 +655,7 @@
                     <div style="margin-bottom:0.2em;"><strong>Last Updated:</strong> ${meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</div>
                     <div style="margin-bottom:0.2em;"><strong>Matched Entities:</strong> ${matches}${moreMatches}</div>
                     <div style="display:flex;gap:0.5em;margin-top:0.7em;">
-                        <button class='button' style='flex:1;' onclick='window.location.href="hierarchy_testing.html?hierarchyId=${meta.id}&status=${meta.status}"'>Load Latest</button>
+                        <button class='button' style='flex:1;' onclick='window.location.href="index.html?hierarchyId=${meta.id}&status=${meta.status}"'>Load Latest</button>
                         <button class='button' style='flex:1;background:#e9ecef;color:#0d2344;' onclick='window.location.href="all_hierarchies.html?company=${encodeURIComponent(meta.user_input.company)}"'>View All Versions</button>
                     </div>
                 </div>`;

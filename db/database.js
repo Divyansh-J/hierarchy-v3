@@ -4,8 +4,8 @@ require('dotenv').config();
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || '54.84.76.100',
-  database: process.env.DB_NAME || 'heirarchy_db',
-  password: process.env.DB_PASSWORD || 'Fresh@7890',
+  database: process.env.DB_NAME || 'hierarchy_db',
+  password: process.env.DB_PASSWORD || 'Nothing01.',
   port: process.env.DB_PORT || 5432,
 });
 
