@@ -77,7 +77,6 @@
              grid-column: 1 / -1;
         }
 
-
         .input-group { 
             display: flex; 
             flex-wrap: wrap;
@@ -296,7 +295,7 @@
         .highlighted-node { border-color: var(--primary-blue) !important; background-color: var(--highlight-bg) !important; box-shadow: 0 0 8px rgba(13, 35, 68, 0.3); border-width: 2px; }
 
         #feedback-section { margin-top: 2rem; display: none; }
-        #existing-project-dialog { 
+        #existing-project-dialog, #knowledge-base-dialog { 
             display: none; 
             position: fixed; 
             top: 0; 
@@ -320,7 +319,6 @@
         }
         .dialog-content h2 { margin-top: 0; }
         .dialog-buttons { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; }
-
 
         .added-row {
             background-color: var(--added-bg) !important;
@@ -407,10 +405,22 @@
         </div>
     </div>
 
+    <div id="knowledge-base-dialog">
+        <div class="dialog-content">
+            <button class="dialog-close" style="position:absolute;top:10px;right:10px;font-size:1.5rem;background:none;border:none;cursor:pointer;" onclick="document.getElementById('knowledge-base-dialog').style.display='none'">✕</button>
+            <h2>Include Knowledge Base?</h2>
+            <p>Would you like to include recent mergers and acquisitions news as a knowledge base for generating the hierarchy?</p>
+            <div class="dialog-buttons">
+                <button id="includeKnowledgeBaseBtn" class="button">Yes</button>
+                <button id="skipKnowledgeBaseBtn" class="button">No</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const API_KEY = "AIzaSyB7PvnCQ1wAsmQTJQR5AFMJ6RdvLNbznSUD";
+        const API_KEY = "AIzaSyB7PvnCQ1wAsmQTJQR5AFMJ6RdvLNbznSUD"; // Ensure this matches your actual API key
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+        const GEMINI_NEWS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
         const BACKEND_URL = 'http://54.84.76.100:5002';
         
         let hierarchyData = [];
@@ -419,6 +429,7 @@
         let entityLocation = '';
         let projectName = '';
         let l0CompanyName = '';
+        let mergerNews = '';
 
         let currentHierarchyId = null; 
         let currentVersionNumber = 0;
@@ -479,6 +490,7 @@
             generateBtn.disabled = !enableGenerate;
             approveBtn.disabled = false;
             submitFeedbackBtn.disabled = false;
+            document.getElementById('knowledge-base-dialog').style.display = 'none';
         }
 
         function updateUIForHierarchy() {
@@ -623,7 +635,6 @@
             const dialogContent = dialog.querySelector('.dialog-content');
             dialog.style.display = 'flex';
             generateBtn.disabled = false;
-            // Group by project+company, show only latest version per group
             const grouped = {};
             fuzzyResults.forEach(result => {
                 const meta = result.metadata;
@@ -640,7 +651,6 @@
                 const meta = result.metadata;
                 const matches = result.matches.slice(0, 3).map(m => `${m.entity.entityName} (${m.entity.level}, ${m.entity.location})`).join(', ');
                 const moreMatches = result.matches.length > 3 ? ` (+${result.matches.length - 3} more)` : '';
-                // Status badge
                 let statusColor = '#888';
                 if (meta.status === 'approved') statusColor = '#28a745';
                 else if (meta.status === 'in-draft') statusColor = '#00bcf2';
@@ -666,10 +676,29 @@
             document.getElementById('createNewVersionBtn').onclick = () => {
                 dialog.style.display = 'none';
                 generateBtn.disabled = false;
-                generateAndSaveInitialVersion(true);
+                showKnowledgeBaseDialog();
             };
-            // Add close handler to re-enable button
             document.getElementById('closeFuzzyDialogBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+            };
+        }
+
+        function showKnowledgeBaseDialog() {
+            const dialog = document.getElementById('knowledge-base-dialog');
+            dialog.style.display = 'flex';
+            generateBtn.disabled = true;
+            document.getElementById('includeKnowledgeBaseBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+                generateAndSaveInitialVersion(true, true); // includeKnowledgeBase = true
+            };
+            document.getElementById('skipKnowledgeBaseBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+                generateAndSaveInitialVersion(true, false); // includeKnowledgeBase = false
+            };
+            document.querySelector('#knowledge-base-dialog .dialog-close').onclick = () => {
                 dialog.style.display = 'none';
                 generateBtn.disabled = false;
             };
@@ -707,14 +736,15 @@
                     loader.style.display = 'none';
                     showExistingProjectDialog(project.id);
                 } else if (response.status === 404) {
-                    await generateAndSaveInitialVersion(false); // createNew = false
+                    loader.style.display = 'none';
+                    showKnowledgeBaseDialog();
                 } else {
                     const errorData = await response.json();
                     throw new Error(errorData.error || 'Server error checking for project.');
                 }
 
             } catch(error) {
-                 displayError(`Failed to check for existing project: ${error.message}.`);
+                displayError(`Failed to check for existing project: ${error.message}.`);
                 resetUI();
             }
         }
@@ -734,10 +764,9 @@
             document.getElementById('createNewVersionBtn').onclick = () => {
                 dialog.style.display = 'none';
                 generateBtn.disabled = false;
-                generateAndSaveInitialVersion(true); // createNew = true, will archive old draft
+                showKnowledgeBaseDialog();
             };
-            // Add close handler if not already present
-            const closeBtn = dialog.querySelector('.dialog-close');
+            const closeBtn = document.querySelector('#existing-project-dialog .dialog-close');
             if (closeBtn) {
                 closeBtn.onclick = () => {
                     dialog.style.display = 'none';
@@ -747,7 +776,7 @@
         }
         
         async function loadHierarchy(hierarchyId) {
-             try {
+            try {
                 resetUI(false);
                 loader.style.display = 'block';
                 loader.textContent = 'Loading hierarchy...';
@@ -781,61 +810,118 @@
             }
         }
 
+        async function fetchMergerNews(companyName) {
+            const newsPrompt = `
+                You are a financial news analyst generating professional summaries for recent mergers and acquisitions involving ${companyName}. Your goal is to write accurate, concise summaries suitable for business news platforms like Bloomberg, Reuters, or WSJ. Follow these rules:
+                1. Clearly name ${companyName} and the other company involved.
+                2. Mention the deal type: acquisition, merger, joint venture, etc.
+                3. Include the transaction date, if available.
+                4. Mention all the mergers and acquisitions that have happened ever since the company was founded.
+                5. Use a neutral, professional tone.
+                6. List all the companies involved in the merger or acquisition, no paragraphs required and no limit on the number of companies.
+                7. Do not speculate — only use facts provided in the input context.
+                FORMAT:
+                - Use plain English.
+                - Begin with ${companyName} if acquiring, or the acquiring company if ${companyName} is acquired.
+                - Use past tense (e.g., "acquired," "announced," "merged with").
+                EXAMPLES:
+                - ${companyName} completed its acquisition of Anixter on June 22, 2020, in a $4.5 billion deal.
+                - Greybar announced its merger with ${companyName} on March 12, 2024.
+            `;
+            try {
+                const response = await fetch(GEMINI_NEWS_API_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: newsPrompt }] }],
+                        tools: [{ google_search_retrieval: {} }],
+                        generationConfig: {
+                            responseMimeType: "text/plain",
+                            temperature: 0.0,
+                            maxOutputTokens: 16384,
+                        }
+                    })
+                });
 
-        async function generateAndSaveInitialVersion() {
-             // This function now assumes entityName, entityLocation, and projectName are set.
-             if (!projectName) {
-                 displayError("A project name is required to start a new hierarchy.");
-                 resetUI();
-                 return;
-             }
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Gemini API request for news failed: ${errorText}`);
+                }
 
-             try {
+                const data = await response.json();
+                if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    throw new Error("Invalid response structure from Gemini API for news.");
+                }
+
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Error fetching merger news:", error);
+                displayError(`Failed to fetch merger news: ${error.message}`);
+                return '';
+            }
+        }
+
+        async function generateAndSaveInitialVersion(createNew = false, includeKnowledgeBase = false) {
+            if (!projectName) {
+                displayError("A project name is required to start a new hierarchy.");
+                resetUI();
+                return;
+            }
+
+            try {
                 resetUI(false);
                 loader.style.display = 'block';
                 loader.textContent = 'Step 1 of 4: Identifying parent company...';
 
                 const l0FinderPrompt = `
-                  You are a corporate structure expert tasked with identifying the ultimate L0 parent company for a given entity. The L0 parent is the top-level public corporation, group, or independent entity that owns or represents the entity in question. Follow these strict rules to ensure accuracy:
+                    You are a corporate structure expert tasked with identifying the ultimate L0 parent company for a given entity. The L0 parent is the top-level public corporation, group, or independent entity that owns or represents the entity in question. Follow these strict rules to ensure accuracy:
 
-                  ### Rules for L0 Identification:
-                  1. **Check for Independence**:
-                     - If the entity is independent, employee-owned, or part of a cooperative structure, it should be its own L0 parent company. Do not assume a parent unless there is clear evidence of ownership.
-                     - Example: Graybar Electric Company is an employee-owned company and should be its own L0 parent, not a subsidiary of another company like WESCO International, Inc.
-                  2. **Verify Ownership**:
-                     - Only identify a parent company if there is clear evidence of ownership, such as an acquisition, merger, or public subsidiary status as of June 2025.
-                     - Avoid assuming a parent based on industry overlap or partnerships. For example, Graybar and WESCO International, Inc. are both in the electrical distribution industry, but Graybar is independent and not owned by WESCO.
-                  3. **Use Location for Context**:
-                     - Use the provided location to confirm the entity's identity and ownership structure. Normalize the location name using these mappings:
-                       - "USA" or "United States" or "U.S.A." → "US"
-                       - "United Kingdom" → "UK"
-                       - "India" → "IN"
-                       - "China" → "CN"
-                       - "Japan" → "JP"
-                       - Other country names should remain as provided unless a standard two-letter code is commonly used.
-                     - For example, if the location is "United States", normalize it to "US".
-                  4. **Handle Name Variants**:
-                     - Normalize entity names to account for typos or variations (e.g., "Greybar" should be treated as "Graybar Electric Company").
-                  5. **Default to Entity Itself if Uncertain**:
-                     - If no clear parent is found or the entity appears to be independent, return the entity itself as the L0 parent.
+                    ### Rules for L0 Identification:
+                    1. **Check for Independence**:
+                        - If the entity is independent, employee-owned, or part of a cooperative structure, it should be its own L0 parent company. Do not assume a parent unless there is clear evidence of ownership.
+                        - Example: Graybar Electric Company is an employee-owned company and should be its own L0 parent, not a subsidiary of another company like WESCO International, Inc.
+                    2. **Verify Ownership**:
+                        - Only identify a parent company if there is clear evidence of ownership, such as an acquisition, merger, or public subsidiary status as of June 2025.
+                        - Avoid assuming a parent based on industry overlap or partnerships. For example, Graybar and WESCO International, Inc. are both in the electrical distribution industry, but Graybar is independent and not owned by WESCO.
+                    3. **Use Location for Context**:
+                        - Use the provided location to confirm the entity's identity and ownership structure. Normalize the location name using these mappings:
+                            - "USA" or "United States" or "U.S.A." → "US"
+                            - "United Kingdom" → "UK"
+                            - "India" → "IN"
+                            - "China" → "CN"
+                            - "Japan" → "JP"
+                            - Other country names should remain as provided unless a standard two-letter code is commonly used.
+                        - For example, if the location is "United States", normalize it to "US".
+                    4. **Handle Name Variants**:
+                        - Normalize entity names to account for typos or variations (e.g., "Greybar" should be treated as "Graybar Electric Company").
+                    5. **Default to Entity Itself if Uncertain**:
+                        - If no clear parent is found or the entity appears to be independent, return the entity itself as the L0 parent.
 
-                  ### Task:
-                  Based on the entity "${entityName}" located in "${entityLocation}", identify its ultimate L0 parent company (the top-level public corporation, group, or independent entity).
-                  
-                  Respond with ONLY a single, valid JSON object with one key, "l0_company_name".
-                  
-                  ### Examples:
-                  - Input: "Anixter, Glenview, IL, USA"
-                  - Output: { "l0_company_name": "WESCO International, Inc." }
-                  - Input: "Amazon India, Bengaluru, India"
-                  - Output: { "l0_company_name": "Amazon, Inc." }
-                  - Input: "Greybar, St. Louis, United States"
-                  - Output: { "l0_company_name": "Graybar Electric Company" }
+                    ### Task:
+                    Based on the entity "${entityName}" located in "${entityLocation}", identify its ultimate L0 parent company (the top-level public corporation, group, or independent entity).
+                    
+                    Respond with ONLY a single, valid JSON object with one key, "l0_company_name".
+                    
+                    ### Examples:
+                    - Input: "Anixter, Glenview, IL, USA"
+                    - Output: { "l0_company_name": "WESCO International, Inc." }
+                    - Input: "Amazon India, Bengaluru, India"
+                    - Output: { "l0_company_name": "Amazon, Inc." }
+                    - Input: "Greybar, St. Louis, United States"
+                    - Output: { "l0_company_name": "Graybar Electric Company" }
                 `;
                 const l0Result = await makeApiCall(l0FinderPrompt);
                 l0CompanyName = l0Result.l0_company_name;
 
-                loader.textContent = 'Step 2 of 4: Generating initial hierarchy...';
+                if (includeKnowledgeBase) {
+                    loader.textContent = 'Step 2 of 5: Fetching mergers and acquisitions news...';
+                    mergerNews = await fetchMergerNews(l0CompanyName);
+                } else {
+                    loader.textContent = 'Step 2 of 4: Generating initial hierarchy...';
+                    mergerNews = '';
+                }
+
+                loader.textContent = includeKnowledgeBase ? 'Step 3 of 5: Generating initial hierarchy...' : 'Step 2 of 4: Generating initial hierarchy...';
                 const scoutPrompt = `
                     You are a world-class business analyst AI. Your primary function is to meticulously map the complete corporate structure of a given company. Your results MUST be maximally comprehensive and granular.
 
@@ -845,6 +931,11 @@
                     - **L2 (Domestic):** The highest-level legal entity within one country or a major region.
                     - **L3 (Parent):** A regional/functional head office, a specific manufacturing plant, or a major subsidiary.
                     - **L4 (Child / Leaf Node):** The most granular level. This includes specific local branches, operational units, sales offices, R&D centers, or even uniquely identified sites (e.g., "Amazon Fulfillment Center - Madrid"). This is the "leaf node" level you must strive to uncover.
+
+                    ### KNOWLEDGE BASE (Mergers and Acquisitions):
+                    ${mergerNews ? `Below is the relevant information about mergers and acquisitions involving ${l0CompanyName}:
+                    ${mergerNews}` : 'No mergers and acquisitions news provided.'}
+                    Use this information to ensure all relevant subsidiaries, acquired entities, or joint ventures are included in the hierarchy, with accurate parent-child relationships.
 
                     ---
                     ### GROUND TRUTH EXAMPLES
@@ -886,28 +977,28 @@
 
                     ---
                     ### YOUR TASK
-                    For the company "${l0CompanyName}", generate the most comprehensive hierarchy possible by applying ALL rules and ground truth logic.
+                    For the company "${l0CompanyName}", generate the most comprehensive hierarchy possible by applying ALL rules and ground truth logic, incorporating the knowledge base provided above.
                     
                     **Internal Thought Process:**
                     1. Identify L0.
                     2. Find all L1s (brands, parent companies, major JVs, key acquisitions).
                     3. For EACH L1, find all its L2 children.
-                    3. For EACH L2, find all its L3 children (covering all countries and regions).
-                    4. **L4 Deep Dive:** For EACH L3 found, apply the "L4 DEEP DIVE RULE" and relentlessly search for all its specific L4 children.
-                    5. Assemble the complete, ultra-granular list into the final JSON.
+                    4. For EACH L2, find all its L3 children (covering all countries and regions).
+                    5. **L4 Deep Dive:** For EACH L3 found, apply the "L4 DEEP DIVE RULE" and relentlessly search for all its specific L4 children.
+                    6. Assemble the complete, ultra-granular list into the final JSON.
 
                     ### FINAL OUTPUT INSTRUCTIONS
                     Your entire response MUST BE a single JSON Array. Each object must have these keys: "level", "entityName", "location", "mappedParent". Do not output any other text.
                 `;
                 const initialData = await makeApiCall(scoutPrompt);
 
-                loader.textContent = 'Step 3 of 4: Verifying and highlighting entry...';
+                loader.textContent = includeKnowledgeBase ? 'Step 4 of 5: Verifying and highlighting entry...' : 'Step 3 of 4: Verifying and highlighting entry...';
                 const validatorPrompt = `
                     You are a data validation and enhancement AI. Below is a JSON array representing a company hierarchy and a "target entity".
                     
                     Your task is to return a modified version of the complete JSON array that meets these two requirements:
-                    1.  Find the object in the array that most closely matches the "target entity". Add a new key-value pair to that specific object: "highlight": true.
-                    2.  If, after a thorough check, the "target entity" is NOT present in the JSON array, you MUST perform a full "Contextual Hierarchy Injection":
+                    1. Find the object in the array that most closely matches the "target entity". Add a new key-value pair to that specific object: "highlight": true.
+                    2. If, after a thorough check, the "target entity" is NOT present in the JSON array, you MUST perform a full "Contextual Hierarchy Injection":
                         a. **Trace and Inject Parents:** Identify the direct parent of the target entity. If that parent is also missing, find *its* parent, and so on, until you reach an existing entity in the hierarchy. Add all these missing parents.
                         b. **Inject Target Entity:** Insert the target entity itself, ensure its 'mappedParent' is correct, and add "highlight": true to it.
                         c. **Expand Surrounding Context:** For the newly added target entity AND for each of its newly added parents, you must build out their context:
@@ -927,20 +1018,21 @@
                 `;
                 const finalHierarchy = await makeApiCall(validatorPrompt);
                 
-                loader.textContent = 'Step 4 of 4: Saving initial draft (v0)...';
+                loader.textContent = includeKnowledgeBase ? 'Step 5 of 5: Saving initial draft (v0)...' : 'Step 4 of 4: Saving initial draft (v0)...';
                 const response = await fetch(`${BACKEND_URL}/api/hierarchies`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userInput: { company: entityName, location: entityLocation },
                         data: finalHierarchy,
-                        projectName: projectName
+                        projectName: projectName,
+                        createNew: createNew
                     })
                 });
                 
                 if (!response.ok) {
-                     const errorData = await response.json();
-                     throw new Error(errorData.error || 'Failed to save initial draft to backend.');
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save initial draft to backend.');
                 }
                 
                 const result = await response.json();
@@ -1128,7 +1220,7 @@
                 throw new Error(`API returned malformed JSON. ${e.message}`);
             }
         }
-        
+
         function downloadCSV() {
             try {
                 if (!hierarchyData || hierarchyData.length === 0) {
